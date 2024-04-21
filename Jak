@@ -1,0 +1,399 @@
+import discord
+from discord.ext import commands
+from colorama import Back, Fore, Style
+import time
+import platform
+import random
+import asyncio
+from PIL import Image, ImageDraw, ImageFont
+import io
+import datetime
+from discord import ui
+
+class Client(commands.Bot):
+    def __init__(self):
+        super().__init__(command_prefix=commands.when_mentioned_or('/'), intents=discord.Intents().all())
+client = Client()
+#client = commands.Bot(command_prefix="/", intents=discord.Intents.all())
+
+
+@client.tree.command(name="hello", description="hello")
+async def hello(ctx: discord.Interaction):
+    await ctx.send("Hello I am Jak 2.0! Now Gluten Free! Please check with our manager for the diabetic friendly version.")
+
+
+# just for easy reading in terminal not bot releated at all
+@client.event
+async def on_ready():
+    prfx = (Back.BLACK + Fore.GREEN + time.strftime("%H:%M:%S UTC",time.gmtime()) + Back.RESET + Fore.WHITE + Style.BRIGHT)
+    print(prfx + "Logged in as" + Fore.GREEN + client.user.name)
+    print(prfx + " Bot ID " + Fore.GREEN + str(client.user.id))
+    print(prfx + " Discord Version " + Fore.GREEN + discord.__version__)
+    print(prfx + " Python Version " + Fore.GREEN + str(platform.python_version()))
+    synced = await client.tree.sync()
+    print(prfx + " Slash CMDs Synced "  + Fore.GREEN + str(len(synced)) + "Commands")
+
+@client.tree.command(name="shutdown", description="shut down the bot, hes being wild again")
+async def shutdown(interaction: discord.Interaction):
+    await interaction.response.send_message(content="Shutting Jak down hes a bit too wild currently")
+    await client.close()
+
+
+# embed for user info sorta? Can use work for the messages please dont get lazy idiot
+# uinfo
+@client.tree.command(name="userinfo", description="Get info on a user")
+async def userinfo(interaction: discord.Interaction, member: discord.Member = None):
+    if member == None:
+        member = interaction.user
+    roles = [role for role in member.roles]
+    embed = discord.Embed(title="User info", description=f"Some info on the user {member.mention}", color=discord.Color.green(), timestamp=datetime.datetime.utcnow())
+    embed.set_thumbnail(url=member.avatar.url)
+    embed.add_field(name="Name", value=f"{member.name}#{member.discriminator}")
+    embed.add_field(name="Nickname", value=member.display_name)
+    embed.add_field(name="Created At", value=member.created_at.strftime("%a, %B, %#d, %Y, %I:%M %p "))
+    embed.add_field(name="Joined At", value=member.joined_at.strftime("%a, %B, %#d, %Y, %I:%M %p "))
+    embed.add_field(name=f"Roles ({len(roles)})", value=" ".join([role.mention for role in roles]))
+    embed.add_field(name="Top Roled", value=member.top_role.mention)
+    embed.add_field(name="Messages", value="0")  # For now come back later! its forever stuck at 0 atm
+    embed.add_field(name="Bot?", value=member.bot)
+    # add more fields or modify as needed!
+    await interaction.response.send_message(embed=embed)
+
+# Server Info sorta? #sinfo
+@client.tree.command(name="serverinfo", description="Get info on the server")
+async def serverinfo(interaction: discord.Interaction):
+    embed = discord.Embed(title="Server info", description=f"Here's some info on the server, {ctx.guild.name}",color=discord.Color.green(), timestamp=intertaciton.message.created_at)
+    embed.set_thumbnail(url=interaction.guild.icon.url)
+    embed.add_field(name="Members", value=intertaciton.guild.member_count)
+    embed.add_field(name="Channel Count",value=f"{len(intertaciton.guild.text_channels)} text | {len(intertaciton.guild.voice_channels)} voice")
+    embed.add_field(name="Owner", value=intertaciton.guild.owner.mention)
+    embed.add_field(name="Description", value=intertaciton.guild.description)
+    embed.add_field(name="Created At", value=intertaciton.guild.created_at.strftime("%a, %B, %#d, %Y, %I:%M %p "))
+    # Add more fields or modify the embed if needed!
+    await interaction.response.send_message(embed=embed)
+
+@client.tree.command(name="math", description="Gives math problems")
+async def math(interaction: discord.Interaction, expression: str):
+    symbols = ['+', '-', '/', '*', '%']
+    if any(s in expression for s in symbols):
+        calculated = eval(expression)
+        embed = discord.Embed(title="Math Question", description=f"`Question`{expression}\n`Answer`{calculated}", color=discord.Color.green(), timestamp=datetime.datetime.utcnow())
+    else:
+        await interaction.response.send_message("This isn't a math problem idiot!")
+    await interaction.response.send_message(embed=embed)
+
+
+@client.tree.command(name="dice", description="Roll a dice")
+async def roll(interaction: discord.Interaction, *, max: int = 6):  # int=6 because its the normal face value of dice
+    number = random.randint(1, max)  # !roll to use it
+    await interaction.response.send_message(number)
+
+
+@client.tree.command(name="choose", description="Choose between multiple options")
+async def choose(interaction: discord.Interaction, arg1: str, arg2: str, arg3: str):
+    arguments = [arg1, arg2, arg3]
+    choice = random.choice(arguments)
+    # Send an initial response to the interaction
+    await interaction.response.send_message("🕐 Thinking... Give Jak a moment")
+    await asyncio.sleep(0.2)
+    # Retrieve the message that was just sent
+    thinking_message = await interaction.original_response()
+    for i in range(6):
+        # Edit the message with the new content
+        await thinking_message.edit(content=f"🕐 Thinking... Give Jak a moment")
+        await asyncio.sleep(0.2)
+    # Follow-up with the actual choice after the edit loop
+    await interaction.followup.send(choice)
+
+
+@client.tree.command(name="guess", description="Guess a number")
+async def guess(interaction: discord.Interaction, max:int=10):
+    MAX_GUESSES = 5
+    number = random.randint(1, max)
+    await interaction.response.send_message(f"Guessing game has started!\nPlease guess a number between **1-{max}**\nYou have **{MAX_GUESSES}** guesses")
+    def check(m):
+        return m.author == interaction.user and m.channel == interaction.channel #checks message I guess idk I googled it and still dont fully grasp it?
+    for i in range(MAX_GUESSES):
+        guess = await client.wait_for('message', check=check)
+        try:
+            int(guess.content)
+            if guess.content == str(number):
+                await interaction.channel.send(f'You got the number right, it took you **{i}** tries!')
+            elif guess.content >= str(number):
+                await interaction.channel.send(f"Lower!")
+            elif guess.content <= str(number):
+                await interaction.channel.send(f'Higher!')
+        except:
+            await interaction.channel.send("Please send a number next time!")
+    else:
+         await interaction.channel.send("Game over... You have ran out of tries!")
+
+
+
+#__________________________________________________________________________________
+#for coinflip with buttons! no wages here idiot
+async def heads_or_tails(interaction, choice):
+  computer_choice = random.choice(["heads", "tails"])
+  if computer_choice == choice:
+      await interaction.response.send_message(content=f"You chose correctly! It was {computer_choice}")
+  else:
+      await interaction.response.send_message(content=f"You chose incorrectly! It was {computer_choice}")
+
+class Cf(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+    @discord.ui.button(label="heads", style=discord.ButtonStyle.green, custom_id="1")
+    async def heads(self, interaction: discord.Interaction, button: discord.ui.Button):
+       await heads_or_tails(interaction,"heads")
+    @discord.ui.button(label="tails", style=discord.ButtonStyle.red, custom_id="2")
+    async def tails(self, interaction: discord.Interaction, button: discord.ui.Button):
+       await heads_or_tails(interaction, "tails")
+
+@client.tree.command(name="cf", description="heads or tails?")
+async def cf(interaction: discord.Interaction):
+    await interaction.response.send_message(content="heads or tails?", view=Cf())
+
+#WIP role select
+class SelectMenu(discord.ui.Select):
+    def __init__(self):
+        options = [
+            discord.SelectOption(label="Movie Night", value="movie_night", emoji="🎥", description="Ping for movie nights!"),
+            discord.SelectOption(label="Class", value="class", emoji="🏫", description="Ping for classes!"),
+            discord.SelectOption(label="NSFW", value="nsfw", emoji="😈", description="Access to NSFW content!"),
+        ]
+        super().__init__(
+            placeholder="What roles do you want?",
+            options=options,
+            min_values=1,
+            max_values=3
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        user = interaction.user
+        guild = interaction.guild
+
+        for selected_value in self.values:
+            role_name = None
+            role_color = None
+
+            if selected_value == "movie_night":
+                role_name = "Movie Night"
+                role_color = discord.Color.blurple()
+            elif selected_value == "class":
+                role_name = "Class"
+                role_color = discord.Color.green()
+            elif selected_value == "nsfw":
+                role_name = "NSFW"
+                role_color = discord.Color.red()
+            else:
+                continue  # Invalid selection
+
+            existing_role = discord.utils.get(guild.roles, name=role_name)
+            if existing_role is not None:
+                if existing_role in user.roles:
+                    await user.remove_roles(existing_role)
+                else:
+                    await user.add_roles(existing_role)
+            else:
+                new_role = await guild.create_role(name=role_name, color=role_color, hoist=False)
+                await user.add_roles(new_role)
+
+        await interaction.response.send_message(f"Roles updated for {user.mention}",ephemeral=True)
+
+
+class Select(discord.ui.View):
+    def __init__(self, timeout=30):
+        super().__init__(timeout=timeout)
+        self.add_item(SelectMenu())
+
+class Role(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
+
+@client.tree.command(name="select", description="Select your roles")
+async def select(interaction: discord.Interaction):
+    await interaction.response.send_message(content="Select your roles", view=Select(), ephemeral=True)
+
+
+
+    # modal wip sort of I want a form instead
+    async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.send_message(f"Hello,**{self.name}**, you are **{self.age}** years old and you said: **{self.about}** about yourself.")
+
+
+
+class MyModal(ui.Modal, title="Information"):
+    name = ui.TextInput(label="Eneter your name", placeholder="My name is...", style=discord.TextStyle.short)
+    age = ui.TextInput(label="Enter your age", placeholder="My age is...", style=discord.TextStyle.short)
+    about = ui.TextInput(label="About you", placeholder="I am...", style=discord.TextStyle.long)
+
+@client.tree.command(name="modal")
+async def modal(interaction: discord.Interaction):
+    await interaction.response.send_modal(MyModal())
+
+
+
+
+
+
+#how to make buttons for future use lol dont delete this lmao
+   # @discord.ui.button(label="test", style=discord.ButtonStyle.blurple)
+    #async def test(self, interaction: discord.Interaction, button: discord.ui.Button):
+       #await interaction.channel.send(content="Fuck you!")
+       #client.tree.command(name="test")
+#async def test(interaction: discord.Interaction):
+    #await interaction.response.send_message(content="This message has a button on it!", view=testButtons())
+    #how to make buttons for future use lol dont delete this lmao
+#__________________________________________________________________
+
+#for buttons to stay forever for like a verification I might do
+#class PersistentViewBot(commands.Bot):
+    #def __init__(self):
+        #intents = discord.Intents().all()
+        #super().__init__(command_prefix=commands.when_mentioned_or('.'), intents=intents)
+    #async def setup_hook(self) -> None:
+       # self.add_view(Cf()) #thanks google
+        #self.add_view()
+
+#client = PersistentViewBot()
+# #How to make buttons stay 140 to 149 line of code for future use when I make a verify button for bot filter
+
+
+
+
+
+
+
+
+
+
+#bro I cant code what is happening
+
+
+
+
+
+
+
+
+
+
+
+# ______________________________________________________________
+# Cactpot Bot sort of? Not what Kenji asked but its 3am I am done
+
+# Dictionary to store player balances
+player_balances = {}
+
+# Dictionary to store ongoing games
+ongoing_games = {}
+
+# Define the possible prize amounts and their corresponding weights
+PRIZES = [(0, 0.4), (50, 0.3), (100, 0.2), (250, 0.08), (500, 0.02)]
+
+
+# Function to generate a mini cactpot ticket
+def generate_ticket():
+    numbers = random.sample(range(1, 10), 9)
+    ticket = [numbers[:3], numbers[3:6], numbers[6:]]
+    return ticket
+
+
+# Function to display the mini cactpot ticket as an interactive embed message
+def format_ticket(ticket):
+    formatted_ticket = ''
+    for row in ticket:
+        formatted_ticket += ' '.join(['||??||' for _ in row]) + '\n'
+    return formatted_ticket
+
+
+# Command to generate and display a mini cactpot ticket
+@client.command()
+async def cactpot(ctx):
+    if ctx.author.id in ongoing_games:
+        await ctx.send(
+            "You already have an ongoing game. Finish that one before starting a new one. Type !finish to end the current game.") 
+        return
+
+    ticket = generate_ticket()
+    revealed = []
+    revealed_ticket = [[num if num in revealed else '??' for num in row] for row in ticket]
+    formatted_revealed_ticket = format_ticket(revealed_ticket)
+
+    embed = discord.Embed(title="Mini Cactpot Ticket", description="Here are the revealed numbers:")
+    embed.add_field(name="Revealed Ticket", value=formatted_revealed_ticket, inline=False)
+    message = await ctx.send(embed=embed)
+
+    # Add reactions for each field
+    for i in range(1, 10):
+        await message.add_reaction(str(i) + '️⃣')
+
+    ongoing_games[ctx.author.id] = {
+        'message': message,
+        'ticket': ticket,
+        'revealed': revealed
+    }
+
+
+# Command to finish the ongoing game
+@client.command()
+async def finish(ctx):
+    if ctx.author.id in ongoing_games:
+        del ongoing_games[ctx.author.id]
+        await ctx.send("The ongoing game has been ended. You can start a new game now.")
+    else:
+        await ctx.send("You don't have an ongoing game to finish.")
+
+
+# Event for reacting to the ticket
+@client.event
+async def on_raw_reaction_add(payload):
+    if payload.user_id == client.user.id:
+        return
+
+    user = await client.fetch_user(payload.user_id)
+    channel = await client.fetch_channel(payload.channel_id)
+    message = await channel.fetch_message(payload.message_id)
+
+    if str(payload.emoji) in ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣']:
+        game_data = ongoing_games.get(payload.user_id)
+        if not game_data:
+            return
+
+        ticket = game_data['ticket']
+        revealed = game_data['revealed']
+
+    if len(revealed) < 3:
+        number = int(str(payload.emoji)[0])
+        if number not in revealed:
+            revealed.append(number)
+            revealed_ticket = [[num if num in revealed else '??' for num in row] for row in ticket]
+            formatted_revealed_ticket = format_ticket(revealed_ticket)
+
+            embed = discord.Embed(title="Mini Cactpot Ticket", description="Here are the revealed numbers:")
+            embed.add_field(name="Revealed Ticket", value=formatted_revealed_ticket, inline=False)
+            await game_data['message'].edit(embed=embed)
+
+        if len(revealed) == 3:
+            prize_amount = random.choices([prize[0] for prize in PRIZES], [prize[1] for prize in PRIZES])[0]
+            user_id = str(user.id)
+            if user_id not in player_balances:
+                player_balances[user_id] = 0
+            player_balances[user_id] += prize_amount
+            await channel.send(f"Congratulations! {user.mention}, you won {prize_amount} Gil!")
+            del ongoing_games[user_id] #This doesnt delete games how fix pls tell me soon mr use !finish for now.... I guess? fuck
+            # Deletes game after each round below idk a better way without doing a shit way if this fails.... yikes oh no it failed refer to line 137 until you find a better solution dummy
+
+
+# Command to check player balance
+@client.command()
+async def balance(ctx):
+    user_id = str(ctx.author.id)
+    if user_id in player_balances:
+        balance = player_balances[user_id]
+        await ctx.send(f'Your balance is: {balance} Gil')
+    else:
+        await ctx.send('You don\'t have a balance yet.')
+
+
+# work on storing it on a server once you have bot more stable, gil doesnt really save after the bot gets turned off
