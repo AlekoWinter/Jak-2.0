@@ -1,14 +1,15 @@
+
 import discord
 from discord.ext import commands
-from colorama import Back, Fore, Style
 import time
 import platform
 import random
 import asyncio
-from PIL import Image, ImageDraw, ImageFont
 import io
 import datetime
 from discord import ui
+from discord import app_commands, utils
+
 
 class Client(commands.Bot):
     def __init__(self):
@@ -22,16 +23,6 @@ async def hello(ctx: discord.Interaction):
     await ctx.send("Hello I am Jak 2.0! Now Gluten Free! Please check with our manager for the diabetic friendly version.")
 
 
-# just for easy reading in terminal not bot releated at all
-@client.event
-async def on_ready():
-    prfx = (Back.BLACK + Fore.GREEN + time.strftime("%H:%M:%S UTC",time.gmtime()) + Back.RESET + Fore.WHITE + Style.BRIGHT)
-    print(prfx + "Logged in as" + Fore.GREEN + client.user.name)
-    print(prfx + " Bot ID " + Fore.GREEN + str(client.user.id))
-    print(prfx + " Discord Version " + Fore.GREEN + discord.__version__)
-    print(prfx + " Python Version " + Fore.GREEN + str(platform.python_version()))
-    synced = await client.tree.sync()
-    print(prfx + " Slash CMDs Synced "  + Fore.GREEN + str(len(synced)) + "Commands")
 
 @client.tree.command(name="shutdown", description="shut down the bot, hes being wild again")
 async def shutdown(interaction: discord.Interaction):
@@ -216,27 +207,83 @@ async def select(interaction: discord.Interaction):
 
 
 
-    # modal wip sort of I want a form instead
+
+
+
+#ticket___________________________________________________________________
+async def get_or_create_private_channel(guild, user):
+    channel_name = f"ticket-{user.name}"
+    # Check if the channel already exists
+    existing_channel = discord.utils.get(guild.text_channels, name=channel_name)
+    if existing_channel:
+        return existing_channel
+    else:
+        overwrites = {
+            guild.default_role: discord.PermissionOverwrite(read_messages=False),
+            user: discord.PermissionOverwrite(read_messages=True)
+        }
+        text_channel = await guild.create_text_channel(channel_name, overwrites=overwrites)
+
+        # Create voice channel
+        voice_channel = await guild.create_voice_channel(channel_name, overwrites=overwrites)
+
+        return text_channel, voice_channel
+
+
+async def close_ticket(text_channel, voice_channel, interaction):
+    user = interaction.user
+    # Check if the user has permission to close the ticket
+    text_permissions = text_channel.overwrites_for(user)
+    if text_permissions.read_messages:
+        await text_channel.delete()
+        await voice_channel.delete()
+        await interaction.response.send_message(f"Ticket channels have been closed.", ephemeral=True)
+    else:
+        await interaction.response.send_message("You do not have permission to close this ticket.", ephemeral=True)
+
+
+class ReportModal(discord.ui.Modal, title="Ticket"):
+    user_name = discord.ui.TextInput(label="User's Discord Name", placeholder="eg. JohnDoe#0000", required=True,
+                                     max_length=100, style=discord.TextStyle.short)
+    datetime = discord.ui.TextInput(label="Enter Date", placeholder="May 1st, 2024", required=True, max_length=100,
+                                    style=discord.TextStyle.short)
+    description = discord.ui.TextInput(label="Type your response here!",
+                                       placeholder="eg. Aleko I would like to talk you about... Or I have a suggestion for the server!",
+                                       required=True, max_length=4000, style=discord.TextStyle.paragraph)
+
     async def on_submit(self, interaction: discord.Interaction):
-        await interaction.response.send_message(f"Hello,**{self.name}**, you are **{self.age}** years old and you said: **{self.about}** about yourself.")
+        await interaction.response.send_message(
+            f"{interaction.user.mention} Your ticket has been created! Aleko will see it soon :)", ephemeral=True)
+
+        channel = discord.utils.get(interaction.guild.text_channels, name="support")
+        user = interaction.user
+
+        text_channel, voice_channel = await get_or_create_private_channel(interaction.guild, user)
+        await text_channel.send(
+            f"Ticket Submitted by {user.mention} \n Name: {self.user_name} \n Date: {self.datetime} \n Description: {self.description}")
+
+
+@client.tree.command(name="ticket", description="Create a ticket!")
+async def ticket(interaction: discord.Interaction):
+    await interaction.response.send_modal(ReportModal())
+
+
+@client.tree.command(name="close", description="Close your ticket channels!")
+async def close(interaction: discord.Interaction):
+    user = interaction.user
+    text_channel = discord.utils.get(interaction.guild.text_channels, name=f"ticket-{user.name}")
+    voice_channel = discord.utils.get(interaction.guild.voice_channels, name=f"ticket-{user.name}")
+    if text_channel and voice_channel:
+        await close_ticket(text_channel, voice_channel, interaction)
+    else:
+        await interaction.response.send_message("You do not have an open ticket.", ephemeral=True)
 
 
 
-class MyModal(ui.Modal, title="Information"):
-    name = ui.TextInput(label="Eneter your name", placeholder="My name is...", style=discord.TextStyle.short)
-    age = ui.TextInput(label="Enter your age", placeholder="My age is...", style=discord.TextStyle.short)
-    about = ui.TextInput(label="About you", placeholder="I am...", style=discord.TextStyle.long)
-
-@client.tree.command(name="modal")
-async def modal(interaction: discord.Interaction):
-    await interaction.response.send_modal(MyModal())
 
 
 
-
-
-
-#how to make buttons for future use lol dont delete this lmao
+ #how to make buttons for future use lol dont delete this lmao
    # @discord.ui.button(label="test", style=discord.ButtonStyle.blurple)
     #async def test(self, interaction: discord.Interaction, button: discord.ui.Button):
        #await interaction.channel.send(content="Fuck you!")
@@ -253,7 +300,7 @@ async def modal(interaction: discord.Interaction):
         #super().__init__(command_prefix=commands.when_mentioned_or('.'), intents=intents)
     #async def setup_hook(self) -> None:
        # self.add_view(Cf()) #thanks google
-        #self.add_view()
+        #self.add_view()4
 
 #client = PersistentViewBot()
 # #How to make buttons stay 140 to 149 line of code for future use when I make a verify button for bot filter
@@ -267,10 +314,6 @@ async def modal(interaction: discord.Interaction):
 
 
 
-#bro I cant code what is happening
-
-
-
 
 
 
@@ -280,120 +323,12 @@ async def modal(interaction: discord.Interaction):
 
 
 # ______________________________________________________________
-# Cactpot Bot sort of? Not what Kenji asked but its 3am I am done
-
-# Dictionary to store player balances
-player_balances = {}
-
-# Dictionary to store ongoing games
-ongoing_games = {}
-
-# Define the possible prize amounts and their corresponding weights
-PRIZES = [(0, 0.4), (50, 0.3), (100, 0.2), (250, 0.08), (500, 0.02)]
 
 
-# Function to generate a mini cactpot ticket
-def generate_ticket():
-    numbers = random.sample(range(1, 10), 9)
-    ticket = [numbers[:3], numbers[3:6], numbers[6:]]
-    return ticket
+#-----------tetris----------------------------------------------------------------------
 
 
-# Function to display the mini cactpot ticket as an interactive embed message
-def format_ticket(ticket):
-    formatted_ticket = ''
-    for row in ticket:
-        formatted_ticket += ' '.join(['||??||' for _ in row]) + '\n'
-    return formatted_ticket
 
 
-# Command to generate and display a mini cactpot ticket
-@client.command()
-async def cactpot(ctx):
-    if ctx.author.id in ongoing_games:
-        await ctx.send(
-            "You already have an ongoing game. Finish that one before starting a new one. Type !finish to end the current game.") 
-        return
+# work on storing it on a server once you have bot more stable, gil doesnt really save after the bot gets turned off.
 
-    ticket = generate_ticket()
-    revealed = []
-    revealed_ticket = [[num if num in revealed else '??' for num in row] for row in ticket]
-    formatted_revealed_ticket = format_ticket(revealed_ticket)
-
-    embed = discord.Embed(title="Mini Cactpot Ticket", description="Here are the revealed numbers:")
-    embed.add_field(name="Revealed Ticket", value=formatted_revealed_ticket, inline=False)
-    message = await ctx.send(embed=embed)
-
-    # Add reactions for each field
-    for i in range(1, 10):
-        await message.add_reaction(str(i) + '️⃣')
-
-    ongoing_games[ctx.author.id] = {
-        'message': message,
-        'ticket': ticket,
-        'revealed': revealed
-    }
-
-
-# Command to finish the ongoing game
-@client.command()
-async def finish(ctx):
-    if ctx.author.id in ongoing_games:
-        del ongoing_games[ctx.author.id]
-        await ctx.send("The ongoing game has been ended. You can start a new game now.")
-    else:
-        await ctx.send("You don't have an ongoing game to finish.")
-
-
-# Event for reacting to the ticket
-@client.event
-async def on_raw_reaction_add(payload):
-    if payload.user_id == client.user.id:
-        return
-
-    user = await client.fetch_user(payload.user_id)
-    channel = await client.fetch_channel(payload.channel_id)
-    message = await channel.fetch_message(payload.message_id)
-
-    if str(payload.emoji) in ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣']:
-        game_data = ongoing_games.get(payload.user_id)
-        if not game_data:
-            return
-
-        ticket = game_data['ticket']
-        revealed = game_data['revealed']
-
-    if len(revealed) < 3:
-        number = int(str(payload.emoji)[0])
-        if number not in revealed:
-            revealed.append(number)
-            revealed_ticket = [[num if num in revealed else '??' for num in row] for row in ticket]
-            formatted_revealed_ticket = format_ticket(revealed_ticket)
-
-            embed = discord.Embed(title="Mini Cactpot Ticket", description="Here are the revealed numbers:")
-            embed.add_field(name="Revealed Ticket", value=formatted_revealed_ticket, inline=False)
-            await game_data['message'].edit(embed=embed)
-
-        if len(revealed) == 3:
-            prize_amount = random.choices([prize[0] for prize in PRIZES], [prize[1] for prize in PRIZES])[0]
-            user_id = str(user.id)
-            if user_id not in player_balances:
-                player_balances[user_id] = 0
-            player_balances[user_id] += prize_amount
-            await channel.send(f"Congratulations! {user.mention}, you won {prize_amount} Gil!")
-            del ongoing_games[user_id] #This doesnt delete games how fix pls tell me soon mr use !finish for now.... I guess? fuck
-            # Deletes game after each round below idk a better way without doing a shit way if this fails.... yikes oh no it failed refer to line 137 until you find a better solution dummy
-
-
-# Command to check player balance
-@client.command()
-async def balance(ctx):
-    user_id = str(ctx.author.id)
-    if user_id in player_balances:
-        balance = player_balances[user_id]
-        await ctx.send(f'Your balance is: {balance} Gil')
-    else:
-        await ctx.send('You don\'t have a balance yet.')
-
-
-# work on storing it on a server once you have bot more stable, gil doesnt really save after the bot gets turned off
